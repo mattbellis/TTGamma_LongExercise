@@ -372,9 +372,7 @@ class TTGammaProcessor(processor.ProcessorABC):
         ##medium jet ID cut
         jetIDbit = 1
 
-        jetSelectNoPt = ((abs(jets.eta)<2.4) &
-                         ((jets.jetId >> jetIDbit & 1)==1) &
-                         jetMuMask & jetEleMask & jetPhoMask )
+        jetSelectNoPt = ((abs(jets.eta)<2.4) & ((jets.jetId >> jetIDbit & 1)==1) & jetMuMask & jetEleMask & jetPhoMask )
         
         #Add 30 GeV pt cut
         jetSelect = jetSelectNoPt & (jets.pt>=30)
@@ -503,14 +501,14 @@ class TTGammaProcessor(processor.ProcessorABC):
         if ak.all(ak.num(egammaPairs)==0):
             egammaMass = np.ones((len(events),1))*-1
         else:
-            egammaMass = ??
+            egammaMass = (egammaPairs.pho + egammaPairs.ele).mass
 
         # define mugammaMass, mass of combinations of tightMuon and leadingPhoton (hint: using the ak.cartesian() method) 
         mugammaPairs = ak.cartesian({"pho":leadingPhoton, "mu":tightMuon})
         if ak.all(ak.num(mugammaPairs)==0):
             mugammaMass = np.ones((len(events),1))*-1
         else:
-            mugammaMass = ??
+            mugammaMass = (mugammaPairs.pho + mugammaPairs.mu).mass
         #"""
 
         ###################
@@ -522,7 +520,7 @@ class TTGammaProcessor(processor.ProcessorABC):
         phoCategoryLoose = np.ones(len(events))
 
         # PART 2B: Uncomment to begin implementing photon categorization
-        """
+        #"""
         if self.isMC:
             #### Photon categories, using pdgID of the matched gen particle for the leading photon in the event
             # reco photons matched to a generated photon
@@ -536,13 +534,13 @@ class TTGammaProcessor(processor.ProcessorABC):
             # 2. DEFINE VARIABLES
             # define the photon categories for tight photon events
             # a genuine photon is a reconstructed photon which is matched to a generator level photon, and does not have a hadronic parent
-            isGenPho = ??
+            isGenPho = matchedPho & ~hadronicParent
             # a hadronic photon is a reconstructed photon which is matched to a generator level photon, but has a hadronic parent
-            isHadPho = ??
+            isHadPho = matchedPho & hadronicParent
             # a misidentified electron is a reconstructed photon which is matched to a generator level electron
-            isMisIDele = ??
+            isMisIDele = matchedEle
             # a hadronic/fake photon is a reconstructed photon that does not fall within any of the above categories and has at least one photon
-            isHadFake = ??  & (ak.num(leadingPhoton)==1)
+            isHadFake = ~isGenPho & ~isHadPho & ~isMisIDele & (ak.num(leadingPhoton)==1)
 
             #define integer definition for the photon category axis 
             phoCategory = 1*isGenPho + 2*isMisIDele + 3*isHadPho + 4*isHadFake
@@ -558,17 +556,17 @@ class TTGammaProcessor(processor.ProcessorABC):
             #####
             # 2. DEFINE VARIABLES
             # a genuine photon is a reconstructed photon which is matched to a generator level photon, and does not have a hadronic parent
-            isGenPhoLoose = ??
+            isGenPhoLoose = matchedPhoLoose & ~hadronicParentLoose
             # a hadronic photon is a reconstructed photon which is matched to a generator level photon, but has a hadronic parent
-            isHadPhoLoose = ??
+            isHadPhoLoose = matchedPhoLoose & hadronicParentLoose
             # a misidentified electron is a reconstructed photon which is matched to a generator level electron
-            isMisIDeleLoose = ??
+            isMisIDeleLoose = matchedEleLoose
             # a hadronic/fake photon is a reconstructed photon that does not fall within any of the above categories and has at least one loose photon
-            isHadFakeLoose = ?? & (ak.num(leadingPhotonLoose)==1)        
+            isHadFakeLoose = ~isGenPhoLoose & ~isHadPhoLoose & ~isMisIDeleLoose & (ak.num(leadingPhotonLoose)==1)        
 
             #define integer definition for the photon category axis
             phoCategoryLoose = 1*isGenPhoLoose + 2*isMisIDeleLoose + 3*isHadPhoLoose + 4*isHadFakeLoose            
-        """
+        #"""
 
         ################
         # EVENT WEIGHTS
@@ -593,12 +591,12 @@ class TTGammaProcessor(processor.ProcessorABC):
             # calculate pileup weights and variations
             # use the puLookup, puLookup_Up, and puLookup_Down lookup functions to find the nominal and up/down systematic weights
             # the puLookup dictionary is called with the full dataset name (datasetFull) and the number of true interactions (Pileup.nTrueInt)
-            puWeight = ?
-            puWeight_Up = ?
-            puWeight_Down = ?
+            puWeight = puLookup(datasetFull,events.Pileup.nTrueInt)
+            puWeight_Up = puLookup_Up(datasetFull,events.Pileup.nTrueInt)
+            puWeight_Down = puLookup_Down(datasetFull,events.Pileup.nTrueInt)
 
             # add the puWeight and it's uncertainties to the weights container
-            weights.add('puWeight',weight=?, weightUp=?, weightDown=?)
+            weights.add('puWeight',weight=puWeight weightUp=puWeight_Up weightDown=puWeight_Down)
 
             #btag key name
             #name / working Point / type / systematic / jetType
@@ -707,6 +705,9 @@ class TTGammaProcessor(processor.ProcessorABC):
         output['all_photon_pt'].fill(dataset=dataset,
                                      pt=ak.flatten(tightPhoton.pt[:,:1]))
 
+        #    fill M3 histogram, for events passing the phosel selection
+        # Note that for M3, ak.fill_none() is also needed so there is at least one entry per event
+        output['M3'].fill(dataset=dataset, M3=ak.flatten(ak.fill_none(M3,-1)))
         """
         systList = ['noweight','nominal']
 
