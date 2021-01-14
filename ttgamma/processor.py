@@ -106,6 +106,7 @@ class TTGammaProcessor(processor.ProcessorABC):
 
             ## book histogram for photon/lepton mass in a 3j0t region
             'photon_lepton_mass_3j0t'             : hist.Hist("Counts", dataset_axis, mass_axis, phoCategory_axis, lep_axis, systematic_axis),
+            'photon_lepton_mass'                  : hist.Hist("Counts", dataset_axis, mass_axis, phoCategory_axis, lep_axis, systematic_axis),
 
             ## book histogram for M3 variable
             'M3'             : hist.Hist("Counts", dataset_axis, m3_axis, phoCategory_axis, lep_axis, systematic_axis),
@@ -383,7 +384,7 @@ class TTGammaProcessor(processor.ProcessorABC):
         # select the subset of tightJet which pass the Deep CSV tagger
         bTagWP = 0.6321   #2016 DeepCSV working point
         btagged = tightJet.btagDeepB>bTagWP  
-        bTaggedJet= jets[btagged]
+        bTaggedJet= tightJet[btagged]
         #"""
 
         #####################
@@ -430,7 +431,7 @@ class TTGammaProcessor(processor.ProcessorABC):
         #                                            have no electrons
         #                                            have no loose muons
         #                                            have no loose electrons
-        muon_eventSelection = muTrigger & oneMuon & (ak.num(events.Electron)==0) & passOverlapRemoval
+        muon_eventSelection = (muTrigger & oneMuon & eleVeto & looseMuonVeto & looseElectronVeto & passOverlapRemoval)
 
         # electron selection, requires events to pass:   electron trigger
         #                                                overlap removal
@@ -438,7 +439,7 @@ class TTGammaProcessor(processor.ProcessorABC):
         #                                                have no muons
         #                                                have no loose muons
         #                                                have no loose electrons
-        electron_eventSelection = eleTrigger & oneEle & (ak.num(events.Muon)==0) & passOverlapRemoval
+        electron_eventSelection = (eleTrigger & passOverlapRemoval & oneEle & muVeto & looseMuonVeto & looseElectronVeto)
 
         # 1. ADD SELECTION
         #add selection 'eleSel', for events passing the electron event selection, and muSel for those passing the muon event selection
@@ -458,10 +459,10 @@ class TTGammaProcessor(processor.ProcessorABC):
         selection.add('jetSel_3j0t',       (ak.num(tightJet)>=3) & (ak.num(bTaggedJet)==0)) 
 
         # add selection for events with exactly 0 tight photons
-        selection.add('zeroPho', ak.num(tightPhoton)==0)
+        selection.add('zeroPho', (ak.num(tightPhoton)==0))
 
         # add selection for events with exactly 1 tight photon
-        selection.add('onePho', ak.num(tightPhoton)==1)
+        selection.add('onePho', (ak.num(tightPhoton)==1))
 
         # add selection for events with exactly 1 loose photon
         selection.add('loosePho', ak.num(loosePhoton)==1)
@@ -713,7 +714,7 @@ class TTGammaProcessor(processor.ProcessorABC):
         # Note that for M3, ak.fill_none() is also needed so there is at least one entry per event
         #output['M3'].fill(dataset=dataset, M3=ak.flatten(ak.fill_none(M3,-1)))
         #"""
-        systList = ['noweight','nominal']
+        #systList = ['noweight','nominal']
 
         # PART 4: SYSTEMATICS
         # uncomment the full list after systematics have been implemented        
@@ -812,7 +813,10 @@ class TTGammaProcessor(processor.ProcessorABC):
       
             phosel_3j0t_e = selection.all(*('eleSel', "jetSel_3j0t", 'onePho') )
             phosel_3j0t_mu = selection.all(*('muSel', "jetSel_3j0t", 'onePho') )
-            
+
+            phosel_e = selection.all(*('eleSel', "jetSel", 'onePho') )
+            phosel_mu = selection.all(*('muSel', "jetSel", 'onePho') )
+
             #Fill the photon_lepton_mass histogram for events passing phosel_3j0t_e and phosel_3j0t_mu
             output['photon_lepton_mass_3j0t'].fill(dataset=dataset,
                                                    mass=ak.flatten(egammaMass[phosel_3j0t_e]),
@@ -827,6 +831,20 @@ class TTGammaProcessor(processor.ProcessorABC):
                                                    lepFlavor='muon',
                                                    systematic=syst,
                                                    weight=evtWeight[phosel_3j0t_mu])
+
+            output['photon_lepton_mass'].fill(dataset=dataset,
+                                                   mass=ak.flatten(egammaMass[phosel_e]),
+                                                   category=phoCategory[phosel_e],
+                                                   lepFlavor='electron',
+                                                   systematic=syst,
+                                                   weight=evtWeight[phosel_e])
+
+            output['photon_lepton_mass'].fill(dataset=dataset,
+                                                   mass=ak.flatten(mugammaMass[phosel_mu]),
+                                                   category=phoCategory[phosel_mu],
+                                                   lepFlavor='muon',
+                                                   systematic=syst,
+                                                   weight=evtWeight[phosel_mu])
         #"""
 
         return output
